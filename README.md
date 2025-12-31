@@ -1,101 +1,71 @@
 # Pastebin Lite
 
-A lightweight, fast "Pastebin"-like application for sharing text snippets with optional expiration and view limits. Built with Python FastAPI for serverless-ready deployment.
+A lightweight "Pastebin"-like application for sharing text snippets with optional expiration and view limits. Built with **FastAPI** and **Upstash Redis** for production-ready serverless deployment.
 
 ## Features
 
-- **Create Pastes:** Share text content instantly
-- **Shareable URLs:** Get a unique link to view your paste
-- **Time-to-Live (TTL):** Pastes automatically expire after a set time
-- **View Limits:** Restrict how many times a paste can be viewed
-- **Deterministic Testing:** Support for test mode with controlled timestamps
-- **Stateless Design:** Works perfectly in serverless environments
+✅ Create and share text pastes  
+✅ Shareable URLs with unique IDs  
+✅ TTL (Time-to-Live) expiry  
+✅ View-count limits  
+✅ Safe HTML rendering (no XSS)  
+✅ Stateless, serverless-compatible design  
+✅ Persistent storage across requests  
 
-## Prerequisites
+## Quick Start
 
-- **Python:** 3.10.11 or higher
-- **Redis:** For persistent storage across requests
-  - Local installation: Download from https://redis.io or via Chocolatey (`choco install redis-64` on Windows)
-  - Or use Upstash Redis (free tier): https://upstash.com
+### Prerequisites
+- Python 3.10+
+- Redis (local or Upstash cloud)
 
-## Installation
+### Installation
 
-### 1. Clone the Repository
 ```bash
+# Clone repo
 git clone <your-repo-url>
 cd pastebin_lite
-```
 
-### 2. Create and Activate Virtual Environment
-```bash
+# Create virtual environment
 python -m venv venv
-venv\Scripts\activate  # On Windows
-# or: source venv/bin/activate  # On macOS/Linux
-```
+venv\Scripts\activate  # Windows or: source venv/bin/activate
 
-### 3. Install Dependencies
-```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-### 4. Configure Environment Variables
-```bash
+# Configure environment
 cp .env.example .env
-# Edit .env and set your REDIS_URL and APP_DOMAIN
+# Edit .env with your REDIS_URL and APP_DOMAIN
 ```
 
-**Example .env for local development:**
-```
-REDIS_URL=redis://localhost:6379
-APP_DOMAIN=http://localhost:8000
-DEBUG=True
-TEST_MODE=0
-```
+### Running Locally
 
-### 5. Start Redis (if running locally)
-```bash
-# Windows with Chocolatey installed Redis
-redis-server
-
-# Or use WSL/Docker
-# docker run -d -p 6379:6379 redis:7-alpine
-```
-
-### 6. Run the Application
 ```bash
 uvicorn app.main:app --reload
 ```
 
-The app will be available at `http://localhost:8000`. Visit the UI at `http://localhost:8000/` to create pastes.
+Visit `http://localhost:8000` to create pastes.
 
 ## API Endpoints
 
 ### Health Check
-```
+```http
 GET /api/healthz
 ```
-Returns JSON indicating if the app and database are operational.
-
-**Response:**
-```json
-{
-  "ok": true
-}
-```
+Response: `{"ok": true}`
 
 ### Create Paste
-```
+```http
 POST /api/pastes
 Content-Type: application/json
 
 {
   "content": "Your text here",
-  "ttl_seconds": 3600,        // Optional: expires in 1 hour
-  "max_views": 5              // Optional: can be viewed max 5 times
+  "ttl_seconds": 3600,      // Optional: expires after 1 hour
+  "max_views": 5            // Optional: viewable max 5 times
 }
 ```
 
-**Response (201):**
+Response (201):
 ```json
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -103,19 +73,12 @@ Content-Type: application/json
 }
 ```
 
-**Errors (400):**
-```json
-{
-  "detail": "content is required and must be non-empty"
-}
-```
-
 ### Fetch Paste (API)
-```
+```http
 GET /api/pastes/:id
 ```
 
-**Response (200):**
+Response (200):
 ```json
 {
   "content": "Your text here",
@@ -124,15 +87,10 @@ GET /api/pastes/:id
 }
 ```
 
-**Unavailable (404):**
-```json
-{
-  "detail": "Paste not found, expired, or view limit exceeded"
-}
-```
+Returns 404 if paste is missing, expired, or view limit exceeded.
 
-### View Paste (HTML)
-```
+### View Paste (Web)
+```http
 GET /p/:id
 ```
 
@@ -140,192 +98,134 @@ Returns HTML page with paste content or 404 error page.
 
 ## Persistence Layer
 
+**Upstash Redis** for persistent key-value storage.
+
 ### Why Redis?
+- **Built-in TTL:** Auto-expires keys using `EXPIRE` command
+- **Atomic Operations:** View counting via `INCR` prevents race conditions
+- **Fast:** Sub-millisecond responses, ideal for serverless
+- **Simple:** No schema migrations, no complex queries
+- **Serverless-Ready:** Upstash provides managed Redis
 
-This project uses **Redis** as the persistence layer for the following reasons:
-
-1. **Key-Value Store:** Perfect for storing pastes as JSON blobs
-2. **Built-in TTL:** Redis `EXPIRE` command automatically removes expired pastes
-3. **Atomic Operations:** `INCR` command ensures view counts don't race in concurrent scenarios
-4. **Fast:** Sub-millisecond response times, ideal for serverless
-5. **Simple:** No schema migrations or complex queries needed
-6. **Serverless-Friendly:** Upstash provides managed Redis for serverless deployments
-
-### Data Structure
-
-Each paste is stored as a Redis hash:
-
+### Data Model
 ```
-Key: paste:{id}
+Key: paste:{uuid}
 Fields:
-  - content: Text content
-  - ttl_seconds: Optional TTL in seconds
-  - max_views: Optional max view count
-  - views: Current view count (incremented per fetch)
-  - created_at: Timestamp of creation (ISO 8601)
+  - content: text content
+  - created_at: ISO 8601 timestamp
+  - ttl_seconds: optional TTL (stored as string)
+  - max_views: optional view limit (stored as string)
+  - views: current view count (incremented per fetch)
 ```
-
-**Alternative:** PostgreSQL can be used instead (see below) for more complex queries.
 
 ## Design Decisions
 
-### 1. **Stateless Architecture**
-No global mutable state in Python. All data persists in Redis, making the app horizontally scalable and serverless-compatible.
+1. **Stateless Architecture:** No global mutable state. All data in Redis → horizontally scalable & serverless-compatible.
 
-### 2. **UUID4 for Paste IDs**
-Collision-resistant, URL-safe, no sequence guessing, no database auto-increments needed.
+2. **UUID4 IDs:** Collision-resistant, URL-safe, no database sequences needed.
 
-### 3. **Deterministic Testing**
-When `TEST_MODE=1`:
-- The `x-test-now-ms` header (milliseconds since epoch) overrides system time for expiry logic
-- Allows reproducible tests without waiting for real TTLs
-- Useful for CI/CD pipelines and automated grading
+3. **Deterministic Testing:** Set `TEST_MODE=1` env var to use `x-test-now-ms` header for custom timestamps (bypasses real system time for testing).
 
-### 4. **Atomic View Counting**
-Uses Redis `INCR` command to avoid race conditions:
-- Multiple simultaneous requests increment correctly
-- No negative view counts possible
-- Thread-safe and process-safe
+4. **Atomic View Counting:** Redis `INCR` ensures thread-safe, race-condition-free counters.
 
-### 5. **Safe HTML Rendering**
-Jinja2's auto-escaping prevents XSS attacks. Paste content rendered as plain text, not HTML.
+5. **Safe Rendering:** Jinja2 auto-escaping prevents XSS. Pastes rendered as plain text.
 
-### 6. **Dynamic URL Generation**
-No hardcoded localhost URLs. URLs are generated from `request.base_url` and `APP_DOMAIN` env var.
+6. **Dynamic URLs:** Generated from `request.base_url` + `APP_DOMAIN` env var (no hardcoded localhost).
 
-### 7. **Graceful Error Handling**
-- Invalid input returns 400 with detailed error messages
-- Unavailable pastes (expired, over-limit, missing) return 404
-- Health check distinguishes app vs. database failures
-
-### 8. **Minimal Dependencies**
-Only essential packages to reduce attack surface and keep deployment size small.
-
-## Testing
-
-### Run Unit Tests
-```bash
-pytest tests/ -v
-```
-
-### Run with Coverage
-```bash
-pytest tests/ --cov=app --cov-report=html
-```
-
-### Manual API Testing (with curl)
-```bash
-# Create a paste
-curl -X POST http://localhost:8000/api/pastes \
-  -H "Content-Type: application/json" \
-  -d '{"content": "Hello World", "ttl_seconds": 60, "max_views": 3}'
-
-# Fetch the paste
-curl http://localhost:8000/api/pastes/{id}
-
-# Test with deterministic time
-curl -H "x-test-now-ms: 1704067200000" http://localhost:8000/api/pastes/{id}
-```
+7. **Error Handling:** 
+   - Invalid input → 400 with JSON error
+   - Unavailable pastes (expired/over-limit/missing) → 404 with JSON
+   - Health check → 200 with `{"ok": true/false}`
 
 ## Deployment
 
 ### Deploy on Railway.app (Recommended)
 
-1. **Sign up** at https://railway.app
-2. **Connect** your GitHub repository
-3. **Add Services:**
-   - Click "Add Service" → "Provision Redis"
-   - Railway auto-generates `REDIS_URL` environment variable
-4. **Deploy:** Push to main branch; Railway auto-deploys
-5. **Set Env Vars:**
-   ```
-   APP_DOMAIN=https://{your-railway-app}.railway.app
-   DEBUG=False
-   TEST_MODE=0
-   ```
+1. Sign up at https://railway.app
+2. Connect GitHub repository
+3. Click "Add Service" → select "Provision Redis"
+4. Railway auto-creates `REDIS_URL` environment variable
+5. Set `APP_DOMAIN=https://{your-railway-domain}` in variables
+6. Push to `main` branch → auto-deploys
 
 ### Deploy on Render.com
 
-1. **Sign up** at https://render.com
-2. **Create Web Service** → Connect GitHub repo
-3. **Settings:**
-   - Build Command: `pip install -r requirements.txt`
-   - Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-4. **Add PostgreSQL or Redis** (Render managed service)
-5. **Environment Variables:** Set `REDIS_URL`, `APP_DOMAIN`
+1. Sign up at https://render.com
+2. Create Web Service, connect GitHub repo
+3. Build Command: `pip install -r requirements.txt`
+4. Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+5. Add Redis service (or use Upstash)
+6. Set environment variables: `REDIS_URL`, `APP_DOMAIN`
 
-### Using Upstash Redis (Serverless)
+### Using Upstash Redis
 
-1. **Sign up** at https://upstash.com
-2. **Create Redis database** (free tier)
-3. **Copy REST API URL** or Redis connection string
-4. **Set in deployment:**
-   ```
-   REDIS_URL=redis://default:{password}@{host}:{port}
-   ```
-
-## Troubleshooting
-
-### Redis Connection Error
-**Problem:** `ConnectionError: Error 111 connecting to localhost:6379`
-**Solution:** Ensure Redis is running. Start with `redis-server` or use Upstash Redis.
-
-### Paste Not Persisting
-**Problem:** Pastes disappear after restart or multiple requests
-**Solution:** Verify `.env` has correct `REDIS_URL`. In-memory storage won't work.
-
-### Time-based Tests Failing
-**Problem:** TTL tests fail on expiry
-**Solution:** Ensure `TEST_MODE=1` is set and `x-test-now-ms` header is sent with tests.
-
-### CORS Issues
-**Problem:** Frontend can't call API from different domain
-**Solution:** Uncomment CORS middleware in `app/main.py` and configure allowed origins.
+1. Sign up at https://upstash.com
+2. Create free Redis database
+3. Copy Redis connection string
+4. Set in deployment: `REDIS_URL=rediss://default:{password}@{host}:{port}`
 
 ## File Structure
 
 ```
 pastebin_lite/
 ├── app/
-│   ├── __init__.py
-│   ├── main.py              # FastAPI app
-│   ├── config.py            # Environment config
+│   ├── main.py              # FastAPI app, routes
+│   ├── config.py            # Environment configuration
 │   ├── models.py            # Pydantic schemas
 │   ├── database.py          # Redis connection & helpers
 │   ├── routes/
-│   │   ├── __init__.py
-│   │   ├── health.py        # /api/healthz
+│   │   ├── health.py        # GET /api/healthz
 │   │   └── pastes.py        # Paste CRUD endpoints
 │   └── templates/
-│       ├── create.html      # Paste creation form
-│       └── view.html        # Paste viewer
-├── tests/
-│   ├── __init__.py
-│   ├── conftest.py          # Pytest fixtures
-│   ├── test_health.py
-│   └── test_pastes.py
-├── static/                  # CSS/JS (minimal)
-├── .env.example             # Template for env vars
+│       ├── create.html      # Create paste form
+│       └── view.html        # View paste page
+├── .env                     # Environment variables (not committed)
 ├── .gitignore
 ├── requirements.txt
 └── README.md
 ```
 
-## Performance & Limits
+## Testing
 
-- **Paste Size:** No hard limit, but keep under 10MB for fast responses
-- **Concurrent Users:** Scales horizontally with Uvicorn workers
-- **Redis TTL Precision:** 1 second granularity
-- **View Count:** Integer-based, no limit
+### Manual API Test (curl)
 
-## License
+```bash
+# Create a paste
+curl -X POST http://localhost:8000/api/pastes \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Hello", "ttl_seconds": 60, "max_views": 3}'
 
-MIT
+# Fetch paste
+curl http://localhost:8000/api/pastes/{id}
 
-## Support
+# Test with custom timestamp (TEST_MODE=1 required)
+curl -H "x-test-now-ms: 1704067200000" http://localhost:8000/api/pastes/{id}
 
-For issues, questions, or improvements, open an issue on GitHub or contact the maintainers.
+# Health check
+curl http://localhost:8000/api/healthz
+```
+
+## Troubleshooting
+
+**Q: Pastes don't persist after restart?**  
+A: Verify `.env` has correct `REDIS_URL`. Check Redis connection in logs.
+
+**Q: `ConnectionError` on startup?**  
+A: Ensure Redis is accessible. For local: start `redis-server`. For Upstash: check URL format is `rediss://` (double 's' for SSL).
+
+**Q: TTL tests failing?**  
+A: Set `TEST_MODE=1` and send `x-test-now-ms` header with milliseconds since epoch.
+
+## Architecture Notes
+
+- **Framework:** FastAPI (async, type-safe, auto-validation)
+- **Server:** Uvicorn (production-ready ASGI)
+- **Language:** Python 3.10.11
+- **Deployment:** Serverless-compatible (stateless, no file I/O)
+- **Database:** Upstash Redis (managed, no ops needed)
 
 ---
 
-**Happy Pasting! 🎉**
+**Built for the Pastebin Lite Take-Home Assignment**
+
+
