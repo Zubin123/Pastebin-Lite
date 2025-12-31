@@ -2,6 +2,8 @@
 Pastebin Lite - Main FastAPI application.
 """
 import logging
+import os
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -33,8 +35,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Mount static files (if directory exists)
+static_dir = Path("static")
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    logger.info("Static files directory mounted")
+else:
+    logger.warning("Static files directory not found, skipping mount")
 
 # Include route modules
 app.include_router(health.router)
