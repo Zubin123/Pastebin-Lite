@@ -2,6 +2,8 @@
 
 A lightweight "Pastebin"-like application for sharing text snippets with optional expiration and view limits. Built with **FastAPI** and **Upstash Redis** for production-ready serverless deployment.
 
+**🚀 [Try Live Demo](https://pastebin-lite-lu55.onrender.com)**
+
 ## Features
 
 ✅ Create and share text pastes  
@@ -11,6 +13,14 @@ A lightweight "Pastebin"-like application for sharing text snippets with optiona
 ✅ Safe HTML rendering (no XSS)  
 ✅ Stateless, serverless-compatible design  
 ✅ Persistent storage across requests  
+
+## Deployment Status
+
+| Environment | Status | URL |
+|-------------|--------|-----|
+| **Production** | ✅ Live | https://pastebin-lite-lu55.onrender.com |
+| **Repository** | ✅ Active | [GitHub](https://github.com/Zubin123/pastebin_lite) |
+| **Database** | ✅ Connected | Upstash Redis |
 
 ## Quick Start
 
@@ -51,6 +61,8 @@ Visit `http://localhost:8000` to create pastes.
 ```http
 GET /api/healthz
 ```
+Example: `curl https://pastebin-lite-lu55.onrender.com/api/healthz`
+
 Response: `{"ok": true}`
 
 ### Create Paste
@@ -139,15 +151,6 @@ Fields:
 
 ## Deployment
 
-### Deploy on Railway.app (Recommended)
-
-1. Sign up at https://railway.app
-2. Connect GitHub repository
-3. Click "Add Service" → select "Provision Redis"
-4. Railway auto-creates `REDIS_URL` environment variable
-5. Set `APP_DOMAIN=https://{your-railway-domain}` in variables
-6. Push to `main` branch → auto-deploys
-
 ### Deploy on Render.com
 
 1. Sign up at https://render.com
@@ -179,6 +182,8 @@ pastebin_lite/
 │   └── templates/
 │       ├── create.html      # Create paste form
 │       └── view.html        # View paste page
+├── static/                  # Static files (CSS/JS)
+│   └── .gitkeep             # Placeholder for git tracking
 ├── .env                     # Environment variables (not committed)
 ├── .gitignore
 ├── requirements.txt
